@@ -96,12 +96,16 @@ func (q whereAppender) AppendFormat(b []byte, f QueryFormatter) []byte {
 //------------------------------------------------------------------------------
 
 type fieldAppender struct {
-	field string
+	field  string
+	column string
 }
 
 var _ FormatAppender = (*fieldAppender)(nil)
 
 func (a fieldAppender) AppendFormat(b []byte, f QueryFormatter) []byte {
+	if a.column != "" {
+		return append(b, a.column...)
+	}
 	return types.AppendField(b, a.field, 1)
 }
 

@@ -32,10 +32,11 @@ type Table struct {
 	Alias     types.Q
 	ModelName string
 
-	Fields     []*Field // PKs + DataFields
-	PKs        []*Field
-	DataFields []*Field
-	FieldsMap  map[string]*Field
+	Fields       []*Field // PKs + DataFields
+	PKs          []*Field
+	DataFields   []*Field
+	SelectFields []*Field // Fields + expressions
+	FieldsMap    map[string]*Field
 
 	Methods   map[string]*Method
 	Relations map[string]*Relation
@@ -67,13 +68,19 @@ func (t *Table) checkPKs() error {
 }
 
 func (t *Table) AddField(field *Field) {
+	t.FieldsMap[field.SQLName] = field
+
+	t.SelectFields = append(t.SelectFields, field)
+	if field.HasFlag(exprFlag) {
+		return
+	}
+
 	t.Fields = append(t.Fields, field)
 	if field.HasFlag(PrimaryKeyFlag) {
 		t.PKs = append(t.PKs, field)
 	} else {
 		t.DataFields = append(t.DataFields, field)
 	}
-	t.FieldsMap[field.SQLName] = field
 }
 
 func (t *Table) GetField(fieldName string) (*Field, error) {
@@ -228,6 +235,7 @@ func (t *Table) getField(name string) *Field {
 
 func (t *Table) newField(f reflect.StructField, index []int) *Field {
 	sqlTag := parseTag(f.Tag.Get("sql"))
+	pgTag := parseTag(f.Tag.Get("pg"))
 
 	switch f.Name {
 	case "tableName", "TableName":
@@ -266,9 +274,15 @@ func (t *Table) newField(f reflect.StructField, index []int) *Field {
 
 		GoName:  f.Name,
 		SQLName: sqlTag.Name,
-		Column:  types.Q(types.AppendField(nil, sqlTag.Name, 1)),
 
 		Index: append(index, f.Index...),
+	}
+
+	if v, ok := pgTag.Options["expr"]; ok {
+		field.SetFlag(exprFlag)
+		field.Column = types.Q(v)
+	} else {
+		field.Column = types.Q(types.AppendField(nil, field.SQLName, 1))
 	}
 
 	if _, ok := sqlTag.Options["notnull"]; ok {
@@ -295,7 +309,6 @@ func (t *Table) newField(f reflect.StructField, index []int) *Field {
 		field.SetFlag(ForeignKeyFlag)
 	}
 
-	pgTag := parseTag(f.Tag.Get("pg"))
 	if _, ok := pgTag.Options["array"]; ok {
 		field.SetFlag(ArrayFlag)
 	}

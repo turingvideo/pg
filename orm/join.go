@@ -170,12 +170,14 @@ func appendAlias(b []byte, j *join, topLevel bool) []byte {
 
 func (j *join) appendHasOneColumns(b []byte) []byte {
 	if j.Columns == nil {
-		for i, f := range j.JoinModel.Table().Fields {
+		for i, f := range j.JoinModel.Table().SelectFields {
 			if i > 0 {
 				b = append(b, ", "...)
 			}
-			b = j.appendAlias(b)
-			b = append(b, '.')
+			if !f.HasFlag(exprFlag) {
+				b = j.appendAlias(b)
+				b = append(b, '.')
+			}
 			b = append(b, f.Column...)
 			b = append(b, " AS "...)
 			b = j.appendAliasColumn(b, f.SQLName)
@@ -254,12 +256,14 @@ func (q hasManyColumnsAppender) AppendFormat(b []byte, f QueryFormatter) []byte 
 	joinTable := q.JoinModel.Table()
 
 	if q.Columns == nil {
-		for i, f := range joinTable.Fields {
+		for i, f := range joinTable.SelectFields {
 			if i > 0 {
 				b = append(b, ", "...)
 			}
-			b = append(b, joinTable.Alias...)
-			b = append(b, '.')
+			if !f.HasFlag(exprFlag) {
+				b = append(b, joinTable.Alias...)
+				b = append(b, '.')
+			}
 			b = append(b, f.Column...)
 		}
 		return b

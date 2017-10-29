@@ -505,8 +505,8 @@ func _seedDB() error {
 		}
 
 		author := Author{
-			ID:   i,
-			Name: fmt.Sprintf("author %d", i),
+			ID:        i,
+			FirstName: fmt.Sprintf("author %d", i),
 		}
 		err = db.Insert(&author)
 		if err != nil {

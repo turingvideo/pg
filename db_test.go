@@ -716,16 +716,19 @@ type Image struct {
 }
 
 type Author struct {
-	ID    int     // both "Id" and "ID" are detected as primary key
-	Name  string  `sql:",unique"`
-	Books []*Book // has many relation
+	ID        int // both "Id" and "ID" are detected as primary key
+	FirstName string
+	LastName  string
+	Name      string  `pg:"expr:first_name || last_name"`
+	Books     []*Book // has many relation
 
 	AvatarId int
 	Avatar   Image
 }
 
 func (a Author) String() string {
-	return fmt.Sprintf("Author<ID=%d Name=%q>", a.ID, a.Name)
+	return fmt.Sprintf("Author<ID=%d FirstName=%q LastName=%q>",
+		a.ID, a.FirstName, a.LastName)
 }
 
 type BookGenre struct {
@@ -792,13 +795,13 @@ type Comment struct {
 
 func createTestSchema(db *pg.DB) error {
 	tables := []interface{}{
-		&Image{},
-		&Author{},
-		&Book{},
-		&Genre{},
-		&BookGenre{},
-		&Translation{},
-		&Comment{},
+		(*Image)(nil),
+		(*Author)(nil),
+		(*Book)(nil),
+		(*Genre)(nil),
+		(*BookGenre)(nil),
+		(*Translation)(nil),
+		(*Comment)(nil),
 	}
 	for _, table := range tables {
 		err := db.DropTable(table, &orm.DropTableOptions{
@@ -814,6 +817,15 @@ func createTestSchema(db *pg.DB) error {
 			return err
 		}
 	}
+
+	_, err := db.Model((*Author)(nil)).Exec(`
+		CREATE UNIQUE INDEX authors_first_name_last_name
+		ON ?TableName (first_name, last_name)
+	`)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -860,17 +872,17 @@ var _ = Describe("ORM", func() {
 		Expect(images).To(HaveLen(3))
 
 		authors := []Author{{
-			ID:       10,
-			Name:     "author 1",
-			AvatarId: images[0].Id,
+			ID:        10,
+			FirstName: "author 1",
+			AvatarId:  images[0].Id,
 		}, {
-			ID:       11,
-			Name:     "author 2",
-			AvatarId: images[1].Id,
+			ID:        11,
+			FirstName: "author 2",
+			AvatarId:  images[1].Id,
 		}, Author{
-			ID:       12,
-			Name:     "author 3",
-			AvatarId: images[2].Id,
+			ID:        12,
+			FirstName: "author 3",
+			AvatarId:  images[2].Id,
 		}}
 		err = db.Insert(&authors)
 		Expect(err).NotTo(HaveOccurred())
@@ -994,18 +1006,18 @@ var _ = Describe("ORM", func() {
 				Id:    100,
 				Title: "",
 				Author: Author{
-					ID:       10,
-					Name:     "author 1",
-					AvatarId: 1,
+					ID:        10,
+					FirstName: "author 1",
+					AvatarId:  1,
 					Avatar: Image{
 						Id:   1,
 						Path: "/path/to/1.jpg",
 					},
 				},
 				Editor: &Author{
-					ID:       11,
-					Name:     "author 2",
-					AvatarId: 2,
+					ID:        11,
+					FirstName: "author 2",
+					AvatarId:  2,
 					Avatar: Image{
 						Id:   2,
 						Path: "/path/to/2.jpg",
@@ -1048,16 +1060,16 @@ var _ = Describe("ORM", func() {
 				First()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(author).To(Equal(Author{
-				ID:       10,
-				Name:     "author 1",
-				AvatarId: 1,
+				ID:        10,
+				FirstName: "author 1",
+				AvatarId:  1,
 				Books: []*Book{{
 					Id:        100,
 					Title:     "",
 					AuthorID:  10,
-					Author:    Author{ID: 10, Name: "author 1", AvatarId: 1},
+					Author:    Author{ID: 10, FirstName: "author 1", AvatarId: 1},
 					EditorID:  11,
-					Editor:    &Author{ID: 11, Name: "author 2", AvatarId: 2},
+					Editor:    &Author{ID: 11, FirstName: "author 2", AvatarId: 2},
 					CreatedAt: time.Time{},
 					Genres:    nil,
 					Translations: []Translation{
@@ -1068,9 +1080,9 @@ var _ = Describe("ORM", func() {
 					Id:        101,
 					Title:     "",
 					AuthorID:  10,
-					Author:    Author{ID: 10, Name: "author 1", AvatarId: 1},
+					Author:    Author{ID: 10, FirstName: "author 1", AvatarId: 1},
 					EditorID:  12,
-					Editor:    &Author{ID: 12, Name: "author 3", AvatarId: 3},
+					Editor:    &Author{ID: 12, FirstName: "author 3", AvatarId: 3},
 					CreatedAt: time.Time{},
 					Genres:    nil,
 					Translations: []Translation{
@@ -1118,8 +1130,8 @@ var _ = Describe("ORM", func() {
 				BookId: 100,
 				Book: &Book{
 					Id:     100,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
-					Editor: &Author{ID: 11, Name: "author 2", AvatarId: 2},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
+					Editor: &Author{ID: 11, FirstName: "author 2", AvatarId: 2},
 				},
 				Lang: "ru",
 			}))
@@ -1144,7 +1156,7 @@ var _ = Describe("ORM", func() {
 			Expect(book).To(Equal(BookWithCommentCount{
 				Book: Book{
 					Id:     100,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
 					Genres: []Genre{
 						{Id: 1, Name: "genre 1", Rating: 999},
 						{Id: 2, Name: "genre 2", Rating: 9999},
@@ -1172,9 +1184,9 @@ var _ = Describe("ORM", func() {
 				Title:    "",
 				AuthorID: 0,
 				Author: Author{
-					ID:       10,
-					Name:     "author 1",
-					AvatarId: 1,
+					ID:        10,
+					FirstName: "author 1",
+					AvatarId:  1,
 					Avatar: Image{
 						Id:   1,
 						Path: "/path/to/1.jpg",
@@ -1182,9 +1194,9 @@ var _ = Describe("ORM", func() {
 				},
 				EditorID: 0,
 				Editor: &Author{
-					ID:       11,
-					Name:     "author 2",
-					AvatarId: 2,
+					ID:        11,
+					FirstName: "author 2",
+					AvatarId:  2,
 					Avatar: Image{
 						Id:   2,
 						Path: "/path/to/2.jpg",
@@ -1216,9 +1228,9 @@ var _ = Describe("ORM", func() {
 				Title:    "",
 				AuthorID: 0,
 				Author: Author{
-					ID:       10,
-					Name:     "author 1",
-					AvatarId: 1,
+					ID:        10,
+					FirstName: "author 1",
+					AvatarId:  1,
 					Avatar: Image{
 						Id:   1,
 						Path: "/path/to/1.jpg",
@@ -1226,9 +1238,9 @@ var _ = Describe("ORM", func() {
 				},
 				EditorID: 0,
 				Editor: &Author{
-					ID:       12,
-					Name:     "author 3",
-					AvatarId: 3,
+					ID:        12,
+					FirstName: "author 3",
+					AvatarId:  3,
 					Avatar: Image{
 						Id:   3,
 						Path: "/path/to/3.jpg",
@@ -1245,9 +1257,9 @@ var _ = Describe("ORM", func() {
 				Title:    "",
 				AuthorID: 0,
 				Author: Author{
-					ID:       11,
-					Name:     "author 2",
-					AvatarId: 2,
+					ID:        11,
+					FirstName: "author 2",
+					AvatarId:  2,
 					Avatar: Image{
 						Id:   2,
 						Path: "/path/to/2.jpg",
@@ -1255,9 +1267,9 @@ var _ = Describe("ORM", func() {
 				},
 				EditorID: 0,
 				Editor: &Author{
-					ID:       11,
-					Name:     "author 2",
-					AvatarId: 2,
+					ID:        11,
+					FirstName: "author 2",
+					AvatarId:  2,
 					Avatar: Image{
 						Id:   2,
 						Path: "/path/to/2.jpg",
@@ -1323,8 +1335,8 @@ var _ = Describe("ORM", func() {
 				BookId: 100,
 				Book: &Book{
 					Id:     100,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
-					Editor: &Author{ID: 11, Name: "author 2", AvatarId: 2},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
+					Editor: &Author{ID: 11, FirstName: "author 2", AvatarId: 2},
 				},
 				Lang: "ru",
 			}, {
@@ -1332,8 +1344,8 @@ var _ = Describe("ORM", func() {
 				BookId: 100,
 				Book: &Book{
 					Id:     100,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
-					Editor: &Author{ID: 11, Name: "author 2", AvatarId: 2},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
+					Editor: &Author{ID: 11, FirstName: "author 2", AvatarId: 2},
 				},
 				Lang: "md",
 			}, {
@@ -1341,8 +1353,8 @@ var _ = Describe("ORM", func() {
 				BookId: 101,
 				Book: &Book{
 					Id:     101,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
-					Editor: &Author{ID: 12, Name: "author 3", AvatarId: 3},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
+					Editor: &Author{ID: 12, FirstName: "author 3", AvatarId: 3},
 				},
 				Lang: "ua",
 			}}))
@@ -1369,7 +1381,7 @@ var _ = Describe("ORM", func() {
 			Expect(books).To(Equal([]BookWithCommentCount{{
 				Book: Book{
 					Id:     100,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
 					Genres: []Genre{
 						{Id: 1, Name: "genre 1", Rating: 999},
 						{Id: 2, Name: "genre 2", Rating: 9999},
@@ -1379,7 +1391,7 @@ var _ = Describe("ORM", func() {
 			}, {
 				Book: Book{
 					Id:     101,
-					Author: Author{ID: 10, Name: "author 1", AvatarId: 1},
+					Author: Author{ID: 10, FirstName: "author 1", AvatarId: 1},
 					Genres: []Genre{
 						{Id: 1, Name: "genre 1", Rating: 99999},
 					},
@@ -1388,7 +1400,7 @@ var _ = Describe("ORM", func() {
 			}, {
 				Book: Book{
 					Id:     102,
-					Author: Author{ID: 11, Name: "author 2", AvatarId: 2},
+					Author: Author{ID: 11, FirstName: "author 2", AvatarId: 2},
 				},
 				CommentCount: 0,
 			}}))

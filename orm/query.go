@@ -142,7 +142,7 @@ func (q *Query) WrapWith(name string) *Query {
 
 func (q *Query) Table(tables ...string) *Query {
 	for _, table := range tables {
-		q.tables = append(q.tables, fieldAppender{table})
+		q.tables = append(q.tables, fieldAppender{field: table})
 	}
 	return q
 }
@@ -167,9 +167,18 @@ func (q *Query) Column(columns ...string) *Query {
 			if _, j := q.model.Join(column, nil); j != nil {
 				continue
 			}
+
+			field, ok := q.model.Table().FieldsMap[column]
+			if ok {
+				q.columns = append(q.columns, fieldAppender{
+					field:  field.SQLName,
+					column: string(field.Column),
+				})
+				continue
+			}
 		}
 
-		q.columns = append(q.columns, fieldAppender{column})
+		q.columns = append(q.columns, fieldAppender{field: column})
 	}
 	return q
 }
@@ -214,10 +223,8 @@ func (q *Query) _getFields(omitPKs bool) ([]*Field, error) {
 
 func (q *Query) Relation(name string, apply func(*Query) (*Query, error)) *Query {
 	if _, j := q.model.Join(name, apply); j == nil {
-		return q.err(fmt.Errorf(
-			"model=%s does not have relation=%s",
-			q.model.Table().Type.Name(), name,
-		))
+		return q.err(fmt.Errorf("model=%s does not have relation=%s",
+			q.model.Table().Type.Name(), name))
 	}
 	return q
 }
@@ -317,7 +324,7 @@ func (q *Query) Join(join string, params ...interface{}) *Query {
 
 func (q *Query) Group(columns ...string) *Query {
 	for _, column := range columns {
-		q.group = append(q.group, fieldAppender{column})
+		q.group = append(q.group, fieldAppender{field: column})
 	}
 	return q
 }
@@ -349,7 +356,7 @@ loop:
 			}
 		}
 
-		q.order = append(q.order, fieldAppender{order})
+		q.order = append(q.order, fieldAppender{field: order})
 	}
 	return q
 }

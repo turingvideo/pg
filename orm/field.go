@@ -13,6 +13,7 @@ const (
 	UniqueFlag
 	ArrayFlag
 	customTypeFlag
+	exprFlag
 )
 
 type Field struct {

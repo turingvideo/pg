@@ -20,7 +20,7 @@ func modelDB() *pg.DB {
 	}
 
 	err = db.Insert(&Author{
-		Name: "author 1",
+		FirstName: "author 1",
 	})
 	if err != nil {
 		panic(err)
@@ -205,12 +205,14 @@ func ExampleDB_Insert_onConflictDoUpdate() {
 func ExampleDB_Insert_selectOrInsert() {
 	db := modelDB()
 
-	author := Author{
-		Name: "R. Scott Bakker",
+	author := &Author{
+		FirstName: "R. Scott",
+		LastName:  "Bakker",
 	}
-	created, err := db.Model(&author).
-		Column("id").
-		Where("name = ?name").
+	created, err := db.Model(author).
+		Column("id", "name").
+		Where("first_name = ?first_name").
+		Where("last_name = ?last_name").
 		OnConflict("DO NOTHING"). // OnConflict is optional
 		Returning("id").
 		SelectOrInsert()
@@ -218,7 +220,7 @@ func ExampleDB_Insert_selectOrInsert() {
 		panic(err)
 	}
 	fmt.Println(created, author)
-	// Output: true Author<ID=2 Name="R. Scott Bakker">
+	// Output: true Author<ID=2 FirstName="R. Scott" LastName="Bakker">
 }
 
 func ExampleDB_Select() {
@@ -781,12 +783,12 @@ func ExampleDB_Update_notNull() {
 func ExampleDB_Update_someColumns() {
 	db := modelDB()
 
-	book := Book{
+	book := &Book{
 		Id:       1,
 		Title:    "updated book 1", // only this column is going to be updated
 		AuthorID: 2,
 	}
-	_, err := db.Model(&book).Column("title").Returning("*").Update()
+	_, err := db.Model(book).Column("title").Returning("*").Update()
 	if err != nil {
 		panic(err)
 	}

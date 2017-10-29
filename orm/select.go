@@ -163,12 +163,14 @@ func (q selectQuery) appendColumns(b []byte) []byte {
 }
 
 func (q selectQuery) appendTableColumns(b []byte, table *Table) []byte {
-	for i, f := range table.Fields {
+	for i, f := range table.SelectFields {
 		if i > 0 {
 			b = append(b, ", "...)
 		}
-		b = append(b, table.Alias...)
-		b = append(b, '.')
+		if !f.HasFlag(exprFlag) {
+			b = append(b, table.Alias...)
+			b = append(b, '.')
+		}
 		b = append(b, f.Column...)
 	}
 	return b
