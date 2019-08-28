@@ -139,6 +139,6 @@ func forAllValues(q *Query, field string, values []string, queryTemplate, queryA
 		} else {
 			q = q.Where(queryTemplate, types.F(field), values[0])
 		}
-    }
+	}
 	return q
 }
