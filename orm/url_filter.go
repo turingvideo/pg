@@ -84,8 +84,10 @@ func (f *URLFilter) Filters(q *Query) (*Query, error) {
 
 		m := q.model.Table().FieldsMap
 		if _, ok := m[filter]; ok {
-			if strings.Contains(filter, "__") {
-				filter = strings.Replace(filter, "__", ".", 1)
+			// Only replace the last one
+			ind := strings.LastIndex(filter, "__")
+			if ind != -1 {
+				filter = filter[:ind] + "." + filter[ind+2:]
 			} else {
 				filter = q.model.Table().ModelName + "." + filter
 			}
