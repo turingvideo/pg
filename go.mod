@@ -9,4 +9,6 @@ require (
 	mellium.im/sasl v0.2.1
 )
 
+replace github.com/go-pg/pg => github.com/turingvideo/pg v0.0.0-20200422191745-ebdcf4f8b27f
+
 go 1.13
